@@ -4,13 +4,12 @@ from app.config.database import engine, Base
 
 # Importar modelos para que SQLAlchemy los registre antes del create_all
 from app.models import miembro, disciplina, instructor, membresia, usuario, gasto
-
 from app.routers import miembro as r_miembro
 from app.routers import disciplina as r_disciplina
 from app.routers import instructor as r_instructor
 from app.routers import membresia as r_membresia
 from app.routers import finanzas as r_finanzas
-from app.routers import usuario as r_finanzas
+from app.routers import usuario as r_usuario
 from app.routers import gasto as r_gasto
 
 
@@ -46,7 +45,7 @@ app.include_router(r_instructor.router)
 app.include_router(r_membresia.router)
 app.include_router(r_finanzas.router)
 app.include_router (r_gasto.router)
-app.inclide_router (r_usuario.router)
+app.include_router (r_usuario.router)
 
 @app.get("/")
 async def root():
