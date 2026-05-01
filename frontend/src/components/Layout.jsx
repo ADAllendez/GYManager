@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useContext } from "react";
 import { NavLink } from "react-router-dom";
+import { AuthContext } from "../context/AuthContext";
 
 const navItems = [
   {
@@ -47,9 +48,30 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    to: "/deudores",
+    label: "Deudores",
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    ),
+  },
+  {
+    to: "/finanzas",
+    label: "Finanzas (Root)",
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
 ];
 
 function Layout({ children }) {
+  // Obtenemos el usuario conectado y la función para salir
+  const { usuario, logout } = useContext(AuthContext);
+
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: "#0f0f0f" }}>
       {/* SIDEBAR */}
@@ -75,7 +97,10 @@ function Layout({ children }) {
             Menú principal
           </p>
           <ul className="space-y-1">
-            {navItems.map(({ to, label, icon }) => (
+            {navItems
+              // Este filtro asegura que "/finanzas" solo se dibuje si el usuario es root
+              .filter(item => item.to !== "/finanzas" || usuario?.rol === "root")
+              .map(({ to, label, icon }) => (
               <li key={to}>
                 <NavLink
                   to={to}
@@ -110,9 +135,27 @@ function Layout({ children }) {
           </ul>
         </nav>
 
-        {/* Footer del sidebar */}
-        <div className="px-6 py-4" style={{ borderTop: "1px solid #2a2a2a" }}>
-          <p className="text-xs" style={{ color: "#4b5563" }}>© 2025 GYM Manager</p>
+        {/* Footer del sidebar con info de usuario y logout */}
+        <div className="px-6 py-4 flex flex-col gap-3" style={{ borderTop: "1px solid #2a2a2a" }}>
+          {usuario && (
+            <div className="text-sm">
+              <span style={{ color: "#9ca3af" }}>Hola, </span>
+              <span className="font-bold text-white capitalize">{usuario.username}</span>
+              <span className="text-xs px-2 py-0.5 ml-2 rounded-full" style={{ backgroundColor: usuario.rol === 'root' ? '#f9731633' : '#3b82f633', color: usuario.rol === 'root' ? '#f97316' : '#3b82f6' }}>
+                {usuario.rol}
+              </span>
+            </div>
+          )}
+          <button 
+            onClick={logout}
+            className="text-left text-sm font-semibold transition"
+            style={{ color: "#ef4444" }}
+            onMouseEnter={e => e.currentTarget.style.color = "#f87171"}
+            onMouseLeave={e => e.currentTarget.style.color = "#ef4444"}
+          >
+            Cerrar Sesión
+          </button>
+          <p className="text-xs mt-1" style={{ color: "#4b5563" }}>© 2026 GYM Manager</p>
         </div>
       </aside>
 

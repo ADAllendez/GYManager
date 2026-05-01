@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.config.database import get_db
 from app.models.usuario import Usuario
 from app.schemas.usuario import UsuarioCreate, UsuarioResponse
@@ -31,9 +32,10 @@ def crear_access_token(data: dict):
 
 
 @router.post("/", response_model=UsuarioResponse)
-def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
+async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_db)):
     # 1. Verificar que el username no exista
-    db_user = db.query(Usuario).filter(Usuario.username == usuario.username).first()
+    result = await db.execute(select(Usuario).where(Usuario.username == usuario.username))
+    db_user = result.scalar_one_or_none()
     if db_user:
         raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
     
@@ -44,15 +46,16 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         rol=usuario.rol
     )
     db.add(nuevo_usuario)
-    db.commit()
-    db.refresh(nuevo_usuario)
+    await db.commit()
+    await db.refresh(nuevo_usuario)
     return nuevo_usuario
 
 
 @router.post("/login")
-def login(datos: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login(datos: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
     # 1. Buscar usuario
-    user = db.query(Usuario).filter(Usuario.username == datos.username).first()
+    result = await db.execute(select(Usuario).where(Usuario.username == datos.username))
+    user = result.scalar_one_or_none()
     
     # 2. Verificar existencia y contraseña
     if not user or not verificar_password(datos.password, user.password_hash):
