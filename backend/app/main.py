@@ -69,7 +69,7 @@ async def startup_event():
             nuevo_root = Usuario(
                 username="root",
                 password_hash=pwd_context.hash("root"),
-                rol="admin"
+                rol="root"
             )
             session.add(nuevo_root)
             await session.commit()

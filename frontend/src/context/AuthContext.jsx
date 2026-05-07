@@ -42,7 +42,8 @@ export const AuthProvider = ({ children }) => {
 
     localStorage.setItem("rol", payload.rol);
     localStorage.setItem("usuario", payload.sub);
-    setUsuario({ username: payload.sub, rol: payload.rol });
+    localStorage.setItem("userId", payload.id);
+    setUsuario({ username: payload.sub, rol: payload.rol, id: payload.id });
   };
 
   const logout = () => {

@@ -8,13 +8,16 @@ import DisciplinasPage from "./pages/DisciplinasPage";
 import InstructoresPage from "./pages/InstructoresPage";
 import MembresiaPage from "./pages/MembresiaPage";
 import DeudoresPage from "./pages/DeudoresPage";
+import TrabajadoresPage from "./pages/TrabajadoresPage";
+import PerfilPage from "./pages/PerfilPage";
+import FinanzasPage from "./pages/FinanzasPage";
 
 
 function RutaPrivada({ children }) {
   const { usuario, cargando } = useContext(AuthContext);
-  
+
   if (cargando) return <div className="min-h-screen bg-[#0f0f0f] text-white flex items-center justify-center text-2xl font-bold">Cargando aplicación...</div>;
-  
+
   return usuario ? children : <Navigate to="/login" />;
 }
 
@@ -30,6 +33,9 @@ function App() {
           <Route path="/instructores" element={<RutaPrivada><InstructoresPage /></RutaPrivada>} />
           <Route path="/membresias" element={<RutaPrivada><MembresiaPage /></RutaPrivada>} />
           <Route path="/deudores" element={<RutaPrivada><DeudoresPage /></RutaPrivada>} />
+          <Route path="/trabajadores" element={<RutaPrivada><TrabajadoresPage /></RutaPrivada>} />
+          <Route path="/perfil" element={<RutaPrivada><PerfilPage /></RutaPrivada>} />
+          <Route path="/finanzas" element={<RutaPrivada><FinanzasPage /></RutaPrivada>} />
 
         </Routes>
       </BrowserRouter>
