@@ -7,7 +7,7 @@ from app.config.database import engine, Base
 from app.models.usuario import Usuario
 
 # Importar modelos para que SQLAlchemy los registre antes del create_all
-from app.models import miembro, disciplina, instructor, membresia, usuario, gasto
+from app.models import miembro, disciplina, instructor, membresia, usuario, gasto, pago_dia, cierre_financiero
 from app.routers import miembro as r_miembro
 from app.routers import disciplina as r_disciplina
 from app.routers import instructor as r_instructor
@@ -15,6 +15,8 @@ from app.routers import membresia as r_membresia
 from app.routers import finanzas as r_finanzas
 from app.routers import usuario as r_usuario
 from app.routers import gasto as r_gasto
+from app.routers import pago_dia as r_pago_dia
+from app.routers import cierre_financiero as r_cierre_financiero
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -51,14 +53,10 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-# Crear tablas y seed del usuario root al iniciar
+# Seed del usuario root al iniciar (las tablas las crea el usuario en MySQL)
 @app.on_event("startup")
 async def startup_event():
-    # 1. Crear tablas
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    # 2. Crear usuario root por defecto si no existe
+    # Crear usuario root por defecto si no existe
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(Usuario).where(Usuario.username == "root")
@@ -84,6 +82,8 @@ app.include_router(r_instructor.router)
 app.include_router(r_membresia.router)
 app.include_router(r_finanzas.router)
 app.include_router(r_gasto.router)
+app.include_router(r_pago_dia.router)
+app.include_router(r_cierre_financiero.router)
 app.include_router(r_usuario.router)
 
 @app.get("/")

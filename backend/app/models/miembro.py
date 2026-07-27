@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date
+from sqlalchemy import Column, Integer, String, Date, Boolean
 from sqlalchemy.orm import relationship
 from app.models import Base
 
@@ -12,5 +12,6 @@ class Miembro(Base):
     correo = Column(String(100))
     telefono = Column(String(30))
     fecha_nacimiento = Column(Date, nullable=True)
+    activo = Column(Boolean, default=True, nullable=False, server_default="1")
 
     membresias = relationship("Membresia", back_populates="miembro")

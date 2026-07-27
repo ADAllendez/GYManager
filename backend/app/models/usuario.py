@@ -20,3 +20,5 @@ class Usuario(Base):
 
     #finanzas
     sueldo_mensual = Column(Float, nullable=True, default=0.0)
+    dia_de_pago = Column(Integer, nullable=True)  # Ej: 5 = cobra el día 5 de cada mes
+    fecha_contratacion = Column(String(20), nullable=True)  # Fecha de inicio como string "YYYY-MM-DD"

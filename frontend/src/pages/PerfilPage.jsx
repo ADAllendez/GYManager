@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { AuthContext } from "../context/AuthContext";
+import { parsearError } from "../api/client";
 import { getUsuarios, crearUsuario, eliminarUsuario } from "../api/usuarios";
 
 // ── Estilos base ─────────────────────────────────────────
@@ -84,7 +85,7 @@ export default function PerfilPage() {
       cargar();
       setTimeout(() => setExito(""), 4000);
     } catch (e) {
-      setError(e?.response?.data?.detail || "Error al crear la cuenta. Revisá los datos.");
+      setError(parsearError(e, "Error al crear la cuenta. Revisá los datos."));
     } finally {
       setGuardando(false);
     }

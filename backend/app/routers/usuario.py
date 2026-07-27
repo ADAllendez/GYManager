@@ -9,6 +9,8 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from typing import List, Optional
+from pydantic import BaseModel
+import os
 
 router = APIRouter(prefix="/api/usuarios", tags=["Usuarios"])
 
@@ -17,6 +19,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = "gym_manager_clave_super_secreta"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 horas
+
+# PIN de recuperación (desde .env)
+RECOVERY_PIN = os.environ.get("RECOVERY_PIN", "1234")
 
 # ── Helpers ──────────────────────────────────────────────
 def hash_password(password: str):
@@ -36,7 +41,9 @@ def crear_access_token(data: dict):
 
 @router.post("/login")
 async def login(datos: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Usuario).where(Usuario.username == datos.username))
+    # Limpiar espacios del username para evitar errores como "root " vs "root"
+    username_limpio = datos.username.strip()
+    result = await db.execute(select(Usuario).where(Usuario.username == username_limpio))
     user = result.scalar_one_or_none()
     if not user or not verificar_password(datos.password, user.password_hash):
         raise HTTPException(status_code=400, detail="Credenciales incorrectas")
@@ -89,10 +96,81 @@ async def actualizar_mi_perfil(
     return user
 
 
+@router.put("/me/credentials")
+async def cambiar_credenciales(
+    datos: UsuarioUpdate,
+    authorization: Optional[str] = Header(default=None),
+    db: AsyncSession = Depends(get_db)
+):
+    """Cambia username y/o contraseña del usuario autenticado.
+    El rol NUNCA se modifica — se mantienen todos los permisos.
+    Retorna un nuevo token JWT con las credenciales actualizadas."""
+    user = await _get_user_from_token(authorization, db)
+
+    # Cambiar username si viene uno nuevo
+    if datos.username and datos.username != user.username:
+        # Verificar que no exista otro usuario con ese username
+        existing = await db.execute(
+            select(Usuario).where(
+                Usuario.username == datos.username,
+                Usuario.id_usuario != user.id_usuario
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
+        user.username = datos.username
+
+    # Cambiar contraseña si viene una nueva
+    if datos.password:
+        user.password_hash = hash_password(datos.password)
+
+    await db.commit()
+    await db.refresh(user)
+
+    # Generar nuevo token con las credenciales actualizadas (mismo rol, mismo id)
+    token_data = {"sub": user.username, "rol": user.rol, "id": user.id_usuario}
+    nuevo_token = crear_access_token(token_data)
+
+    return {
+        "message": "Credenciales actualizadas correctamente",
+        "access_token": nuevo_token,
+        "token_type": "bearer",
+        "username": user.username,
+        "rol": user.rol,
+        "id": user.id_usuario
+    }
+
+
+class ResetRootRequest(BaseModel):
+    pin: str
+
+
+@router.post("/reset-root")
+async def resetear_password_root(datos: ResetRootRequest, db: AsyncSession = Depends(get_db)):
+    """Resetea la contraseña del usuario root a la predeterminada ('root').
+    Requiere el PIN de seguridad configurado en .env."""
+    # Verificar PIN de seguridad
+    if datos.pin.strip() != RECOVERY_PIN:
+        raise HTTPException(status_code=403, detail="PIN de seguridad incorrecto")
+
+    result = await db.execute(select(Usuario).where(Usuario.rol == "root"))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No se encontró el usuario administrador")
+
+    user.password_hash = hash_password("root")
+    await db.commit()
+
+    return {
+        "message": "Contraseña restablecida correctamente",
+        "username": user.username,
+        "default_password": "root"
+    }
+
 @router.get("/", response_model=List[UsuarioResponse])
 async def listar_usuarios(db: AsyncSession = Depends(get_db)):
     """Retorna todos los usuarios que NO son root (trabajadores)."""
-    result = await db.execute(select(Usuario).where(Usuario.username != "root"))
+    result = await db.execute(select(Usuario).where(Usuario.rol != "root"))
     users = result.scalars().all()
     return users
 
@@ -121,6 +199,8 @@ async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_d
         correo=usuario.correo,
         dni=usuario.dni,
         sueldo_mensual=usuario.sueldo_mensual,
+        dia_de_pago=usuario.dia_de_pago,
+        fecha_contratacion=usuario.fecha_contratacion,
     )
     db.add(nuevo_usuario)
     await db.commit()
@@ -165,6 +245,10 @@ async def actualizar_usuario(id: int, datos: UsuarioUpdate, db: AsyncSession = D
         user.dni = datos.dni
     if datos.sueldo_mensual is not None:
         user.sueldo_mensual = datos.sueldo_mensual
+    if datos.dia_de_pago is not None:
+        user.dia_de_pago = datos.dia_de_pago
+    if datos.fecha_contratacion is not None:
+        user.fecha_contratacion = datos.fecha_contratacion
 
     await db.commit()
     await db.refresh(user)
@@ -177,6 +261,10 @@ async def eliminar_usuario(id: int, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    await db.delete(user)
-    await db.commit()
-    return user
+    try:
+        await db.delete(user)
+        await db.commit()
+        return user
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="No se puede eliminar el usuario porque tiene registros asociados")

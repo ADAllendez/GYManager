@@ -16,4 +16,3 @@ class Instructor(Base):
     )
 
     disciplina = relationship("Disciplina", backref="instructores")
-    membresias = relationship("Membresia", back_populates="instructor")

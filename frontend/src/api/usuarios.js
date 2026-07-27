@@ -6,3 +6,4 @@ export const actualizarUsuario  = async (id, data) => (await api.put(`/api/usuar
 export const eliminarUsuario    = async (id)       => (await api.delete(`/api/usuarios/${id}`)).data;
 export const getMe              = async ()         => (await api.get("/api/usuarios/me")).data;
 export const updateMe           = async (data)     => (await api.put("/api/usuarios/me", data)).data;
+export const updateCredentials  = async (data)     => (await api.put("/api/usuarios/me/credentials", data)).data;

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
+import { parsearError } from "../api/client";
 import { getInstructores, crearInstructor, actualizarInstructor, eliminarInstructor } from "../api/instructores";
 import { getDisciplinas } from "../api/disciplinas";
 
@@ -58,14 +59,14 @@ export default function InstructoresPage() {
       else await crearInstructor(payload);
       await cargar(); setPanelAbierto(false);
     } catch (err) {
-      setError(err.response?.data?.detail ?? "Error al guardar.");
+      setError(parsearError(err, "Error al guardar."));
     }
   }
 
   async function handleEliminar(id) {
     if (!window.confirm("¿Eliminar este instructor?")) return;
     try { await eliminarInstructor(id); await cargar(); }
-    catch { setError("Error al eliminar."); }
+    catch (err) { setError(parsearError(err, "Error al eliminar.")); }
   }
 
   return (

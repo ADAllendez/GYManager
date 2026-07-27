@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date
+from sqlalchemy import Column, Integer, String, Float, Date, Text
 from app.models import Base
 
 class Gasto(Base):
@@ -9,3 +9,4 @@ class Gasto(Base):
     categoria = Column(String(50), nullable=False) # Ej: "sueldos", "insumos", "servicios"
     monto = Column(Float, nullable=False)
     fecha = Column(Date, nullable=False)
+    notas = Column(Text, nullable=True)  # Descripción detallada del gasto

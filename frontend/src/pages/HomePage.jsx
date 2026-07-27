@@ -46,7 +46,7 @@ function BadgeEstado({ estado }) {
 
 function formatFecha(str) {
   if (!str) return "-";
-  return new Date(str).toLocaleDateString("es-AR");
+  return new Date(str + "T12:00:00").toLocaleDateString("es-AR");
 }
 
 export default function HomePage() {

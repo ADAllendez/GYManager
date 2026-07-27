@@ -3,7 +3,7 @@ import Layout from "../components/Layout";
 import { getMembresias, crearMembresia, actualizarMembresia, eliminarMembresia, renovarMembresia } from "../api/membresias";
 import { getMiembros } from "../api/miembros";
 import { getDisciplinas } from "../api/disciplinas";
-import { getInstructores } from "../api/instructores";
+import api, { parsearError } from "../api/client";
 
 const CARD  = { backgroundColor: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px" };
 const INPUT = {
@@ -28,6 +28,26 @@ function BadgeEstado({ estado }) {
   );
 }
 
+function BadgeTipo({ esNuevo }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: 999,
+        fontSize: 10,
+        fontWeight: 700,
+        backgroundColor: esNuevo ? "#7c3aed22" : "#0369a122",
+        color: esNuevo ? "#a78bfa" : "#38bdf8",
+        border: esNuevo ? "1px solid #7c3aed44" : "1px solid #0369a144",
+        marginLeft: 6,
+      }}
+    >
+      {esNuevo ? "Nuevo" : "Retorno"}
+    </span>
+  );
+}
+
 function formatFecha(str) {
   if (!str) return "—";
   return new Date(str + "T12:00:00").toLocaleDateString("es-AR");
@@ -40,7 +60,7 @@ const en30 = () => {
 };
 
 const EMPTY_FORM = {
-  id_miembro: "", id_disciplina: "", id_instructor: "",
+  id_miembro: "", id_disciplina: "",
   fecha_inicio: hoy(), fecha_vencimiento: en30(),
   estado: "nuevo", precio_abonado: "",
 };
@@ -49,7 +69,6 @@ export default function MembresiaPage() {
   const [membresias, setMembresias]   = useState([]);
   const [miembros, setMiembros]       = useState([]);
   const [disciplinas, setDisciplinas] = useState([]);
-  const [instructores, setInstructores] = useState([]);
 
   const [form, setForm]               = useState(EMPTY_FORM);
   const [editId, setEditId]           = useState(null);
@@ -64,13 +83,18 @@ export default function MembresiaPage() {
   async function cargar() {
     setCargando(true);
     try {
-      const [mem, mi, di, ins] = await Promise.all([
-        getMembresias(), getMiembros(), getDisciplinas(), getInstructores(),
+      const [mem, mi, di] = await Promise.all([
+        getMembresias(), getMiembros(), getDisciplinas(),
       ]);
-      setMembresias(mem); setMiembros(mi); setDisciplinas(di); setInstructores(ins);
+      setMembresias(mem); setMiembros(mi); setDisciplinas(di);
     } catch { setError("Error al cargar datos."); }
     finally { setCargando(false); }
   }
+
+  // Verificar vencidos y desactivar miembros automáticamente al cargar la página
+  useEffect(() => {
+    api.post("/membresias/check-vencidos").catch(() => {});
+  }, []);
 
   function abrirNuevo() {
     setForm(EMPTY_FORM); setEditId(null); setError(""); setPanelAbierto(true);
@@ -79,7 +103,6 @@ export default function MembresiaPage() {
   function abrirEdicion(m) {
     setForm({
       id_miembro: m.id_miembro, id_disciplina: m.id_disciplina,
-      id_instructor: m.id_instructor ?? "",
       fecha_inicio: m.fecha_inicio, fecha_vencimiento: m.fecha_vencimiento,
       estado: m.estado, precio_abonado: String(m.precio_abonado),
     });
@@ -98,7 +121,6 @@ export default function MembresiaPage() {
     const payload = {
       id_miembro: Number(form.id_miembro),
       id_disciplina: Number(form.id_disciplina),
-      id_instructor: form.id_instructor ? Number(form.id_instructor) : null,
       fecha_inicio: form.fecha_inicio,
       fecha_vencimiento: form.fecha_vencimiento,
       estado: form.estado,
@@ -109,20 +131,20 @@ export default function MembresiaPage() {
       else await crearMembresia(payload);
       await cargar(); setPanelAbierto(false);
     } catch (err) {
-      setError(err.response?.data?.detail ?? "Error al guardar.");
+      setError(parsearError(err, "Error al guardar."));
     }
   }
 
   async function handleRenovar(id) {
     if (!window.confirm("¿Renovar esta membresía por 30 días más desde hoy?")) return;
     try { await renovarMembresia(id); await cargar(); }
-    catch (err) { setError(err.response?.data?.detail ?? "Error al renovar."); }
+    catch (err) { setError(parsearError(err, "Error al renovar.")); }
   }
 
   async function handleEliminar(id) {
     if (!window.confirm("¿Eliminar esta membresía?")) return;
     try { await eliminarMembresia(id); await cargar(); }
-    catch { setError("Error al eliminar."); }
+    catch (err) { setError(parsearError(err, "Error al eliminar.")); }
   }
 
   const filtradas = membresias.filter(m => {
@@ -131,8 +153,7 @@ export default function MembresiaPage() {
     if (!q) return true;
     return (
       m.nombre_miembro?.toLowerCase().includes(q) ||
-      m.nombre_disciplina?.toLowerCase().includes(q) ||
-      m.nombre_instructor?.toLowerCase().includes(q)
+      m.nombre_disciplina?.toLowerCase().includes(q)
     );
   });
 
@@ -213,7 +234,7 @@ export default function MembresiaPage() {
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottom: "1px solid #2a2a2a" }}>
-                  {["Miembro","Disciplina","Instructor","Inicio","Vencimiento","Precio","Estado","Acciones"].map(h => (
+                  {["Miembro","Disciplina","Inicio","Vencimiento","Precio","Estado","Acciones"].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
                       style={{ color: "#6b7280" }}>{h}</th>
                   ))}
@@ -225,15 +246,13 @@ export default function MembresiaPage() {
                     style={{ borderBottom: idx < filtradas.length - 1 ? "1px solid #1f1f1f" : "none" }}>
                     <td className="px-4 py-3 text-sm font-medium text-white whitespace-nowrap">
                       {m.nombre_miembro}
+                      <BadgeTipo esNuevo={m.es_nuevo} />
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs px-2 py-0.5 rounded-full"
                         style={{ backgroundColor: "#f9731620", color: "#f97316" }}>
                         {m.nombre_disciplina}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: "#9ca3af" }}>
-                      {m.nombre_instructor || "—"}
                     </td>
                     <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: "#9ca3af" }}>
                       {formatFecha(m.fecha_inicio)}
@@ -247,7 +266,6 @@ export default function MembresiaPage() {
                     <td className="px-4 py-3"><BadgeEstado estado={m.estado} /></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 flex-nowrap">
-                        {/* Botón renovar: visible en vencidas y activas */}
                         {(m.estado === "vencido" || m.estado === "activo") && (
                           <button onClick={() => handleRenovar(m.id_membresia)}
                             title="Renovar membresía"
@@ -304,6 +322,13 @@ export default function MembresiaPage() {
                 </div>
               )}
 
+              {/* Info: cliente nuevo/retorno se detecta automáticamente */}
+              {!editId && (
+                <div className="px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#1e3a5f22", color: "#60a5fa", border: "1px solid #1e40af33" }}>
+                  💡 El sistema detectará automáticamente si es un cliente nuevo o de retorno.
+                </div>
+              )}
+
               {/* Miembro */}
               <div>
                 <label style={LABEL}>Miembro *</label>
@@ -338,23 +363,6 @@ export default function MembresiaPage() {
                 </select>
               </div>
 
-              {/* Instructor */}
-              <div>
-                <label style={LABEL}>Instructor</label>
-                <select style={{ ...INPUT, cursor: "pointer" }}
-                  value={form.id_instructor}
-                  onChange={e => setForm(p => ({ ...p, id_instructor: e.target.value }))}
-                  onFocus={e => e.target.style.borderColor = "#f97316"}
-                  onBlur={e => e.target.style.borderColor = "#2a2a2a"}>
-                  <option value="">— Sin asignar —</option>
-                  {instructores.map(i => (
-                    <option key={i.id_instructor} value={i.id_instructor}>
-                      {i.nombre} {i.apellido}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               {/* Fechas */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -373,20 +381,6 @@ export default function MembresiaPage() {
                     onFocus={e => e.target.style.borderColor = "#f97316"}
                     onBlur={e => e.target.style.borderColor = "#2a2a2a"} />
                 </div>
-              </div>
-
-              {/* Estado */}
-              <div>
-                <label style={LABEL}>Estado</label>
-                <select style={{ ...INPUT, cursor: "pointer" }}
-                  value={form.estado}
-                  onChange={e => setForm(p => ({ ...p, estado: e.target.value }))}
-                  onFocus={e => e.target.style.borderColor = "#f97316"}
-                  onBlur={e => e.target.style.borderColor = "#2a2a2a"}>
-                  <option value="nuevo">Nuevo</option>
-                  <option value="activo">Activo</option>
-                  <option value="vencido">Vencido</option>
-                </select>
               </div>
 
               {/* Precio */}

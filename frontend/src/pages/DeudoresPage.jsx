@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
+import { parsearError } from "../api/client";
 import { getMembresias, renovarMembresia } from "../api/membresias";
 
 const CARD = { backgroundColor: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: "12px" };
@@ -39,12 +40,13 @@ function BadgeDias({ dias }) {
   );
 }
 
-export default function DeudoresPage() {
-  const [deudores, setDeudores] = useState([]);
+export default function VencidosPage() {
+  const [vencidos, setVencidos] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [renovando, setRenovando] = useState(null);
   const [error, setError] = useState("");
   const [busqueda, setBusqueda] = useState("");
-  const [ordenDias, setOrdenDias] = useState("desc"); // desc = más atrasados primero
+  const [ordenDias, setOrdenDias] = useState("desc");
 
   useEffect(() => {
     cargar();
@@ -55,29 +57,32 @@ export default function DeudoresPage() {
     setError("");
     try {
       const mem = await getMembresias();
-      // Solo vencidas
-      const vencidas = mem
+      // Solo vencidas (el backend ya las actualiza automáticamente)
+      const venc = mem
         .filter((m) => m.estado === "vencido")
         .map((m) => ({ ...m, diasVencida: diasVencida(m.fecha_vencimiento) }));
-      setDeudores(vencidas);
+      setVencidos(venc);
     } catch {
-      setError("Error al cargar deudores.");
+      setError("Error al cargar membresías vencidas.");
     } finally {
       setCargando(false);
     }
   }
 
   async function handleRenovar(id) {
-    if (!window.confirm("¿Renovar esta membresía por 30 días más desde hoy?")) return;
+    if (!window.confirm("¿Renovar esta membresía por 30 días más desde hoy? El miembro quedará activo nuevamente.")) return;
+    setRenovando(id);
     try {
       await renovarMembresia(id);
       await cargar();
     } catch (err) {
-      setError(err.response?.data?.detail ?? "Error al renovar.");
+      setError(parsearError(err, "Error al renovar."));
+    } finally {
+      setRenovando(null);
     }
   }
 
-  const filtrados = deudores
+  const filtrados = vencidos
     .filter((m) => {
       const q = busqueda.toLowerCase();
       if (!q) return true;
@@ -90,18 +95,18 @@ export default function DeudoresPage() {
       ordenDias === "desc" ? b.diasVencida - a.diasVencida : a.diasVencida - b.diasVencida
     );
 
-  const masde30 = deudores.filter((m) => m.diasVencida > 30).length;
-  const entre15y30 = deudores.filter((m) => m.diasVencida > 15 && m.diasVencida <= 30).length;
-  const menos15 = deudores.filter((m) => m.diasVencida <= 15).length;
+  const masde30   = vencidos.filter((m) => m.diasVencida > 30).length;
+  const entre15y30 = vencidos.filter((m) => m.diasVencida > 15 && m.diasVencida <= 30).length;
+  const menos15   = vencidos.filter((m) => m.diasVencida <= 15).length;
 
   return (
     <Layout>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Deudores</h1>
+          <h1 className="text-2xl font-bold text-white">Vencidos</h1>
           <p className="text-sm mt-0.5" style={{ color: "#6b7280" }}>
-            Membresías vencidas sin renovar — {deudores.length} total
+            Membresías vencidas que requieren renovación — {vencidos.length} total
           </p>
         </div>
         <button
@@ -121,9 +126,9 @@ export default function DeudoresPage() {
       {/* Cards de resumen */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: "Críticos (+30 días)", count: masde30, color: "#ef4444", bg: "#ef444422" },
+          { label: "Críticos (+30 días)", count: masde30,   color: "#ef4444", bg: "#ef444422" },
           { label: "Moderados (15–30 días)", count: entre15y30, color: "#f97316", bg: "#f9731622" },
-          { label: "Recientes (–15 días)", count: menos15, color: "#eab308", bg: "#eab30822" },
+          { label: "Recientes (–15 días)", count: menos15,  color: "#eab308", bg: "#eab30822" },
         ].map(({ label, count, color, bg }) => (
           <div key={label} style={{ ...CARD, padding: "20px 24px" }}>
             <p className="text-sm font-medium mb-1" style={{ color: "#6b7280" }}>{label}</p>
@@ -133,7 +138,7 @@ export default function DeudoresPage() {
                 className="h-1 rounded-full"
                 style={{
                   backgroundColor: color,
-                  width: deudores.length ? `${(count / deudores.length) * 100}%` : "0%",
+                  width: vencidos.length ? `${(count / vencidos.length) * 100}%` : "0%",
                   transition: "width 0.5s ease",
                 }}
               />
@@ -194,7 +199,7 @@ export default function DeudoresPage() {
             <svg className="w-12 h-12 mb-3" fill="none" stroke="currentColor" strokeWidth={1.2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="font-semibold">¡Sin deudores!</p>
+            <p className="font-semibold">¡Sin vencidos!</p>
             <p className="text-sm mt-1">Todas las membresías están al día.</p>
           </div>
         ) : (
@@ -223,8 +228,18 @@ export default function DeudoresPage() {
                       borderBottom: idx < filtrados.length - 1 ? "1px solid #1f1f1f" : "none",
                     }}
                   >
-                    <td className="px-4 py-3 text-sm font-medium text-white whitespace-nowrap">
-                      {m.nombre_miembro}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                          style={{ backgroundColor: "#ef444422", color: "#ef4444" }}
+                        >
+                          {m.nombre_miembro?.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-medium text-white whitespace-nowrap">
+                          {m.nombre_miembro}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -249,16 +264,30 @@ export default function DeudoresPage() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => handleRenovar(m.id_membresia)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+                        disabled={renovando === m.id_membresia}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap flex items-center gap-1.5"
                         style={{
                           backgroundColor: "#16a34a22",
-                          color: "#22c55e",
+                          color: renovando === m.id_membresia ? "#6b7280" : "#22c55e",
                           border: "1px solid #16a34a44",
+                          cursor: renovando === m.id_membresia ? "not-allowed" : "pointer",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#16a34a44")}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#16a34a22")}
+                        onMouseEnter={(e) => { if (renovando !== m.id_membresia) e.currentTarget.style.backgroundColor = "#16a34a44"; }}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#16a34a22"}
                       >
-                        Renovar
+                        {renovando === m.id_membresia ? (
+                          <>
+                            <div className="w-3 h-3 rounded-full border border-t-transparent animate-spin" style={{ borderColor: "#22c55e", borderTopColor: "transparent" }} />
+                            Renovando…
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                            </svg>
+                            Renovar
+                          </>
+                        )}
                       </button>
                     </td>
                   </tr>

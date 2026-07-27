@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../components/Layout";
+import { parsearError } from "../api/client";
 import { getUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } from "../api/usuarios";
 
 // ── Estilos compartidos ──────────────────────────────────
@@ -15,7 +16,7 @@ const FORM_VACIO = {
   username: "", password: "", rol: "admin",
   nombre: "", apellido: "", edad: "",
   telefono: "", correo: "", dni: "",
-  sueldo_mensual: "",
+  sueldo_mensual: "", dia_de_pago: "",
 };
 
 // ── Componente Badge de rol ───────────────────────────────
@@ -113,6 +114,14 @@ function ModalFormulario({ modo, datos, onChange, onGuardar, onCerrar, guardando
             <label style={LABEL}>Sueldo mensual ($)</label>
             <input style={INPUT} type="number" value={datos.sueldo_mensual} onChange={e => onChange("sueldo_mensual", e.target.value)} placeholder="150000" />
           </div>
+          {/* Día de cobro */}
+          <div>
+            <label style={LABEL}>Día de cobro (1–31)</label>
+            <input style={INPUT} type="number" min="1" max="31"
+              value={datos.dia_de_pago || ""}
+              onChange={e => onChange("dia_de_pago", e.target.value)}
+              placeholder="Ej: 5 = cobra el día 5 de cada mes" />
+          </div>
           {/* Rol */}
           <div>
             <label style={LABEL}>Rol</label>
@@ -191,6 +200,7 @@ export default function TrabajadoresPage() {
       edad: t.edad || "", dni: t.dni || "",
       telefono: t.telefono || "", correo: t.correo || "",
       sueldo_mensual: t.sueldo_mensual || "",
+      dia_de_pago: t.dia_de_pago || "",
     });
     setError("");
     setModal("editar");
@@ -222,6 +232,7 @@ export default function TrabajadoresPage() {
       telefono: form.telefono.trim() || null,
       correo: form.correo.trim() || null,
       sueldo_mensual: form.sueldo_mensual ? Number(form.sueldo_mensual) : null,
+      dia_de_pago: form.dia_de_pago ? Number(form.dia_de_pago) : null,
     };
 
     if (modal === "crear") payload.password = form.password;
@@ -237,7 +248,7 @@ export default function TrabajadoresPage() {
       cerrarModal();
       cargar();
     } catch (e) {
-      setError(e?.response?.data?.detail || "Error al guardar. Revisá los datos.");
+      setError(parsearError(e, "Error al guardar. Revisá los datos."));
     } finally {
       setGuardando(false);
     }

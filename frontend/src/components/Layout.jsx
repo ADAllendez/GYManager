@@ -1,7 +1,7 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
+import React, { useContext, useState, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
-import { crearUsuario, getUsuarios, eliminarUsuario, getMe, updateMe } from "../api/usuarios";
+import { crearUsuario, getUsuarios, eliminarUsuario, getMe, updateMe, updateCredentials } from "../api/usuarios";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M4.5 10.5V19a1.5 1.5 0 001.5 1.5h4.5V15h3v5.5H18A1.5 1.5 0 0019.5 19v-8.5" /></svg> },
@@ -9,7 +9,7 @@ const navItems = [
   { to: "/membresias", label: "Membresías", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" /></svg> },
   { to: "/disciplinas", label: "Disciplinas", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg> },
   { to: "/instructores", label: "Instructores", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg> },
-  { to: "/deudores", label: "Deudores", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg> },
+  { to: "/deudores", label: "Vencidos", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
   { to: "/finanzas", label: "Finanzas", rootOnly: true, icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
 ];
 
@@ -145,9 +145,14 @@ function ModalGestion({ onClose }) {
                       </div>
                     ) : (
                       <>
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <p style={{ fontSize: 13, fontWeight: 600, color: "#fff", margin: 0 }}>{t.nombre || ""} {t.apellido || ""}</p>
                           <p style={{ fontSize: 11, color: "#3b82f6", margin: 0, fontFamily: "monospace" }}>@{t.username}</p>
+                          {t.sueldo_mensual > 0 && (
+                            <p style={{ fontSize: 11, color: "#22c55e", margin: "2px 0 0", fontWeight: 600 }}>
+                              💰 ${Number(t.sueldo_mensual).toLocaleString("es-AR")}/mes
+                            </p>
+                          )}
                         </div>
                         <button onClick={() => setConfirm(t)} style={{ padding: "4px 10px", borderRadius: 5, border: "1px solid #ef444433", backgroundColor: "#ef444415", color: "#ef4444", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                           Eliminar
@@ -166,7 +171,7 @@ function ModalGestion({ onClose }) {
 }
 
 function Layout({ children }) {
-  const { usuario, logout } = useContext(AuthContext);
+  const { usuario, logout, setUsuario } = useContext(AuthContext);
   const [modalAbierto, setModal]   = useState(false);
   const [perfilAbierto, setPerfil] = useState(false);
   const [perfil, setPData]         = useState(null);
@@ -176,9 +181,17 @@ function Layout({ children }) {
   const [errorP, setErrorP]        = useState("");
   const fotoRef = useRef(null);
 
+  // ── Credenciales ──
+  const [showCreds, setShowCreds]     = useState(false);
+  const [credForm, setCredForm]       = useState({ username: "", password: "", confirmPassword: "" });
+  const [guardandoCred, setGuardCred] = useState(false);
+  const [exitoCred, setExitoCred]     = useState("");
+  const [errorCred, setErrorCred]     = useState("");
+
   async function abrirPerfil() {
     setPerfil(true);
     setExitoP(""); setErrorP("");
+    setShowCreds(false); setExitoCred(""); setErrorCred("");
     try {
       const data = await getMe();
       setPData(data);
@@ -191,10 +204,12 @@ function Layout({ children }) {
         sueldo_mensual: data.sueldo_mensual || "",
         foto: data.foto || "",
       });
+      setCredForm({ username: data.username || "", password: "", confirmPassword: "" });
     } catch (e) { console.error(e); }
   }
 
   function cambiarP(k, v) { setFormP(p => ({ ...p, [k]: v })); }
+  function cambiarCred(k, v) { setCredForm(p => ({ ...p, [k]: v })); }
 
   function manejarFoto(e) {
     const file = e.target.files[0];
@@ -214,7 +229,7 @@ function Layout({ children }) {
         telefono: formP.telefono || null,
         dni: formP.dni || null,
         fecha_contratacion: formP.fecha_contratacion || null,
-        sueldo_mensual: formP.sueldo_mensual ? Number(formP.sueldo_mensual) : null,
+        // sueldo_mensual solo lo puede editar el root desde Trabajadores
         foto: formP.foto || null,
       });
       setExitoP("✓ Perfil actualizado correctamente.");
@@ -222,6 +237,55 @@ function Layout({ children }) {
     } catch (e) {
       setErrorP(e?.response?.data?.detail || "Error al guardar el perfil.");
     } finally { setGuardP(false); }
+  }
+
+  async function guardarCredenciales(e) {
+    e.preventDefault();
+    setErrorCred(""); setExitoCred("");
+
+    // Validaciones
+    const nuevoUser = credForm.username.trim();
+    const nuevaPass = credForm.password;
+    const confirmar = credForm.confirmPassword;
+
+    if (!nuevoUser) return setErrorCred("El nombre de usuario no puede estar vacío.");
+    if (nuevoUser.length < 3) return setErrorCred("El usuario debe tener al menos 3 caracteres.");
+
+    const cambiaUser = nuevoUser !== (perfil?.username || "");
+    const cambiaPass = nuevaPass.length > 0;
+
+    if (!cambiaUser && !cambiaPass) return setErrorCred("No hay cambios para guardar.");
+
+    if (cambiaPass) {
+      if (nuevaPass.length < 4) return setErrorCred("La contraseña debe tener al menos 4 caracteres.");
+      if (nuevaPass !== confirmar) return setErrorCred("Las contraseñas no coinciden.");
+    }
+
+    setGuardCred(true);
+    try {
+      const payload = {};
+      if (cambiaUser) payload.username = nuevoUser;
+      if (cambiaPass) payload.password = nuevaPass;
+
+      const res = await updateCredentials(payload);
+
+      // Actualizar token y datos de sesión
+      localStorage.setItem("token", res.access_token);
+      localStorage.setItem("usuario", res.username);
+      localStorage.setItem("rol", res.rol);
+      localStorage.setItem("userId", res.id);
+      setUsuario({ username: res.username, rol: res.rol, id: res.id });
+
+      // Limpiar contraseñas y actualizar datos de perfil
+      setCredForm(p => ({ ...p, password: "", confirmPassword: "" }));
+      setPData(prev => ({ ...prev, username: res.username }));
+
+      setExitoCred("✓ Credenciales actualizadas correctamente.");
+      setTimeout(() => setExitoCred(""), 4000);
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      setErrorCred(typeof detail === "string" ? detail : "Error al actualizar las credenciales.");
+    } finally { setGuardCred(false); }
   }
 
   const esRoot = usuario?.rol === "root";
@@ -283,7 +347,7 @@ function Layout({ children }) {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
                     <div><label style={LS}>Fecha de inicio</label><input style={IS} type="date" value={formP.fecha_contratacion || ""} onChange={e => cambiarP("fecha_contratacion", e.target.value)} /></div>
-                    <div><label style={LS}>Mensualidad ($)</label><input type="number" value={formP.sueldo_mensual || ""} onChange={e => cambiarP("sueldo_mensual", e.target.value)} placeholder="0" readOnly style={{ ...IS, color: "#6b7280" }} /></div>
+                    <div><label style={LS}>Mensualidad ($)</label><input type="number" value={formP.sueldo_mensual || ""} readOnly style={{ ...IS, color: "#9ca3af", cursor: "not-allowed" }} title="Solo el administrador puede modificar el sueldo" /></div>
                   </div>
                 </>
               )}
@@ -292,6 +356,87 @@ function Layout({ children }) {
                 {guardandoP ? "Guardando..." : "Guardar cambios"}
               </button>
             </form>
+
+            {/* ── Sección de Credenciales de Acceso ── */}
+            <div style={{ borderTop: "1px solid #2a2a2a", margin: "0" }}>
+              <button
+                type="button"
+                onClick={() => { setShowCreds(c => !c); setErrorCred(""); setExitoCred(""); }}
+                style={{
+                  width: "100%", padding: "14px 20px", background: "none", border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  color: "#fff", fontSize: 13, fontWeight: 700,
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = "#1a1a1a"}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <svg style={{ width: 16, height: 16, color: "#f97316" }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                  Credenciales de acceso
+                </span>
+                <svg style={{ width: 14, height: 14, color: "#6b7280", transform: showCreds ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+
+              {showCreds && (
+                <form onSubmit={guardarCredenciales} style={{ padding: "0 20px 20px" }}>
+                  {exitoCred && <div style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 7, backgroundColor: "#16a34a22", color: "#22c55e", fontSize: 12, border: "1px solid #22c55e33" }}>{exitoCred}</div>}
+                  {errorCred && <div style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 7, backgroundColor: "#ef444422", color: "#ef4444", fontSize: 12, border: "1px solid #ef444433" }}>{errorCred}</div>}
+
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={LS}>Nombre de usuario</label>
+                    <input
+                      style={IS}
+                      value={credForm.username}
+                      onChange={e => cambiarCred("username", e.target.value)}
+                      placeholder="Ej: admin_gym"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={LS}>Nueva contraseña</label>
+                      <input
+                        style={IS}
+                        type="password"
+                        value={credForm.password}
+                        onChange={e => cambiarCred("password", e.target.value)}
+                        placeholder="Mín. 4 caracteres"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div>
+                      <label style={LS}>Confirmar contraseña</label>
+                      <input
+                        style={IS}
+                        type="password"
+                        value={credForm.confirmPassword}
+                        onChange={e => cambiarCred("confirmPassword", e.target.value)}
+                        placeholder="Repetir contraseña"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                  </div>
+
+                  <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 12, lineHeight: 1.4 }}>
+                    🔒 Dejá la contraseña vacía si solo querés cambiar el nombre de usuario. Tu rol y permisos se mantienen.
+                  </p>
+
+                  <button type="submit" disabled={guardandoCred} style={{
+                    width: "100%", padding: "9px", borderRadius: 8, border: "1px solid #f9731644",
+                    cursor: guardandoCred ? "not-allowed" : "pointer",
+                    backgroundColor: guardandoCred ? "#4b5563" : "#f9731622",
+                    color: "#f97316", fontSize: 13, fontWeight: 700,
+                  }}>
+                    {guardandoCred ? "Guardando..." : "Actualizar credenciales"}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
